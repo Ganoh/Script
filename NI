@@ -1062,14 +1062,14 @@ AutoCapsulesTab:CreateToggle({
                             local Net = RS:FindFirstChild("__Net")
                             local Event = Net and Net:FindFirstChild("MainRemote")
                             if Event then
-                                task.wait(1)
+                                task.wait()
                                 Event:FireServer("ToggleMinionAutoOpen", SelectedCapsule)
                             end
                         end
                     end
                 end
 
-                task.wait(0.01)
+                task.wait(0.3)
             end
         end)
     end
@@ -1316,7 +1316,7 @@ ItemsTab:CreateToggle({
                 if Event then
                     Event:FireServer("OpenChest", "T1TrialChest", 100)
                 end
-                task.wait(0.01)
+                task.wait()
             end
         end)
     end
@@ -1337,7 +1337,7 @@ ItemsTab:CreateToggle({
                 if Event then
                     Event:FireServer("OpenChest", "T2TrialChest", 100)
                 end
-                task.wait(0.01)
+                task.wait()
             end
         end)
     end
