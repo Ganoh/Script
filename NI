@@ -1036,7 +1036,7 @@ AutoCapsulesTab:CreateToggle({
         task.spawn(function()
             while autoCapsuleOn do
                 updateAutoPauseState()
-                if AutosPaused then task.wait(0.1) continue end
+                if AutosPaused then task.wait() continue end
 
                 if SelectedCapsule and UIZones then
                     local fullName = capsuleDisplayMap[SelectedCapsule]
@@ -1069,7 +1069,7 @@ AutoCapsulesTab:CreateToggle({
                     end
                 end
 
-                task.wait(0.3)
+                task.wait()
             end
         end)
     end
