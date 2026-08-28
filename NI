@@ -624,7 +624,7 @@ AutoTrialTab:CreateDropdown({
 AutoTrialTab:CreateSlider({
     Name = "Leave Trial At (Seconds Left)",
     Flag = "TrialLeaveTime",
-    Range = {1, 300},
+    Range = {1, 1300},
     Increment = 1,
     CurrentValue = leaveTime,
     Callback = function(value)
