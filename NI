@@ -523,7 +523,7 @@ local autoLeaveEnabled = true
 AutoTrialTab:CreateDropdown({
     Name = "Trial Difficulty",
     Flag = "TrialDifficulty",
-    Options = { "Hard", "Medium", "Easy" },
+    Options = { "Extreme", "Hard", "Medium", "Easy" },
     CurrentOption = { SelectedTrialDifficulty },
     MultipleOptions = false,
     Callback = function(selected)
