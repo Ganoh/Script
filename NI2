@@ -512,19 +512,18 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
-local SettingsTab     = Window:CreateTab("Settings")
+local SettingsTab     = Window:CreateTab("Settings & Misc")
 local AutoTrialTab    = Window:CreateTab("AutoTrial")
 local AutoRunesTab    = Window:CreateTab("AutoRunes")
 local AutoCapsulesTab = Window:CreateTab("AutoCapsules")
 local AutoOresTab     = Window:CreateTab("AutoOres")
 local AutoMobsTab     = Window:CreateTab("AutoMobs")
 local AutoUpgradesTab = Window:CreateTab("AutoUpgrades")
-local MiscTab         = Window:CreateTab("Misc")
 local ConfigTab       = Window:CreateTab("Configs")
 local CreditsTab      = Window:CreateTab("Credits")
 
 ---------------------------------------------------------------------
--- Settings Tab
+-- Settings & Misc Tab
 ---------------------------------------------------------------------
 SettingsTab:CreateDropdown({
     Name = "Movement Mode",
@@ -601,6 +600,94 @@ SettingsTab:CreateToggle({
                 task.wait(0.15)
             end
         end)
+    end
+})
+
+MiscTab:CreateButton({
+    Name = "Redeem Codes (Be in a server with others)",
+    Callback = function()
+        local remote = getMainRemote()
+        local myCodesFolder = LocalPlayer:FindFirstChild("EXTRA") and LocalPlayer.EXTRA:FindFirstChild("CODES")
+        if not myCodesFolder then
+            warn("No local CODES folder found.")
+            return
+        end
+
+        local myCodes = {}
+        for _, codeObj in ipairs(myCodesFolder:GetChildren()) do
+            myCodes[codeObj.Name] = true
+        end
+
+        local missingCodes, queued = {}, {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local codesFolder = player:FindFirstChild("EXTRA") and player.EXTRA:FindFirstChild("CODES")
+                if codesFolder then
+                    for _, codeObj in ipairs(codesFolder:GetChildren()) do
+                        local codeName = codeObj.Name
+                        if not myCodes[codeName] and not queued[codeName] then
+                            queued[codeName] = true
+                            table.insert(missingCodes, codeName)
+                        end
+                    end
+                end
+            end
+        end
+
+        startManagedThread("RedeemCodes", function()
+            for _, codeName in ipairs(missingCodes) do
+                if remote then
+                    remote:FireServer("EnterCode", codeName)
+                end
+                task.wait(2)
+            end
+        end)
+    end
+})
+
+local antiAFKConnection = nil
+
+MiscTab:CreateToggle({
+    Name = "Anti AFK",
+    Flag = "AntiAFK",
+    CurrentValue = false,
+    Callback = function(state)
+        antiAFKOn = state
+        if antiAFKConnection then
+            antiAFKConnection:Disconnect()
+            antiAFKConnection = nil
+        end
+
+        if not state then return end
+
+        antiAFKConnection = LocalPlayer.Idled:Connect(function()
+            local cam = workspace.CurrentCamera
+            if cam then
+                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
+                task.wait(0.05)
+                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
+            end
+        end)
+    end
+})
+
+MiscTab:CreateButton({
+    Name = "Load Infinite Yield",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end
+})
+
+MiscTab:CreateButton({
+    Name = "Print Debug Info",
+    Callback = function()
+        print("===== DEBUG INFO =====")
+        print("MovementMode:", MovementMode)
+        print("SelectedTrialDifficulty:", SelectedTrialDifficulty)
+        print("TrialActive:", TrialActive, "| AutosPaused:", AutosPaused)
+        print("AutoPrestige:", getgenv().AutoPrestige)
+        print("HideErrors:", getgenv().HideErrors)
+        print("===== END DEBUG =====")
     end
 })
 
@@ -1338,97 +1425,6 @@ if WorldUI then
         end
     end)
 end
-
----------------------------------------------------------------------
--- Misc Tab
----------------------------------------------------------------------
-MiscTab:CreateButton({
-    Name = "Redeem Codes (Be in a server with others)",
-    Callback = function()
-        local remote = getMainRemote()
-        local myCodesFolder = LocalPlayer:FindFirstChild("EXTRA") and LocalPlayer.EXTRA:FindFirstChild("CODES")
-        if not myCodesFolder then
-            warn("No local CODES folder found.")
-            return
-        end
-
-        local myCodes = {}
-        for _, codeObj in ipairs(myCodesFolder:GetChildren()) do
-            myCodes[codeObj.Name] = true
-        end
-
-        local missingCodes, queued = {}, {}
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local codesFolder = player:FindFirstChild("EXTRA") and player.EXTRA:FindFirstChild("CODES")
-                if codesFolder then
-                    for _, codeObj in ipairs(codesFolder:GetChildren()) do
-                        local codeName = codeObj.Name
-                        if not myCodes[codeName] and not queued[codeName] then
-                            queued[codeName] = true
-                            table.insert(missingCodes, codeName)
-                        end
-                    end
-                end
-            end
-        end
-
-        startManagedThread("RedeemCodes", function()
-            for _, codeName in ipairs(missingCodes) do
-                if remote then
-                    remote:FireServer("EnterCode", codeName)
-                end
-                task.wait(2)
-            end
-        end)
-    end
-})
-
-local antiAFKConnection = nil
-
-MiscTab:CreateToggle({
-    Name = "Anti AFK",
-    Flag = "AntiAFK",
-    CurrentValue = false,
-    Callback = function(state)
-        antiAFKOn = state
-        if antiAFKConnection then
-            antiAFKConnection:Disconnect()
-            antiAFKConnection = nil
-        end
-
-        if not state then return end
-
-        antiAFKConnection = LocalPlayer.Idled:Connect(function()
-            local cam = workspace.CurrentCamera
-            if cam then
-                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
-                task.wait(0.05)
-                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
-            end
-        end)
-    end
-})
-
-MiscTab:CreateButton({
-    Name = "Load Infinite Yield",
-    Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-    end
-})
-
-MiscTab:CreateButton({
-    Name = "Print Debug Info",
-    Callback = function()
-        print("===== DEBUG INFO =====")
-        print("MovementMode:", MovementMode)
-        print("SelectedTrialDifficulty:", SelectedTrialDifficulty)
-        print("TrialActive:", TrialActive, "| AutosPaused:", AutosPaused)
-        print("AutoPrestige:", getgenv().AutoPrestige)
-        print("HideErrors:", getgenv().HideErrors)
-        print("===== END DEBUG =====")
-    end
-})
 
 ---------------------------------------------------------------------
 -- Config System
