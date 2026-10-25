@@ -1,24 +1,12 @@
---== NoobIncremental (Optimized & Fixed Version) ==--
+--== NoobIncremental (Optimized & Custom Build) ==--
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
 ---------------------------------------------------------------------
--- Compatibility & Executor Helpers
+-- Compatibility & Helpers
 ---------------------------------------------------------------------
 local cloneref = cloneref or function(obj) return obj end
-
-local function safeFireSignal(event, ...)
-    if firesignal then
-        pcall(firesignal, event, ...)
-    elseif getconnections then
-        pcall(function(...)
-            for _, conn in ipairs(getconnections(event)) do
-                conn:Fire(...)
-            end
-        end, ...)
-    end
-end
 
 local function ensureNotEmpty(tbl)
     if type(tbl) ~= "table" or #tbl == 0 then
@@ -53,20 +41,12 @@ local RuneZones    = GameContent and GameContent:WaitForChild("RuneZones", 10)
 
 local NetFolder    = RS:WaitForChild("__Net", 10)
 local MainRemote   = NetFolder and NetFolder:WaitForChild("MainRemote", 10)
-local ToggleUIRemote = NetFolder and NetFolder:WaitForChild("ToggleUI", 10)
 
 local function getMainRemote()
     if MainRemote and MainRemote.Parent then return MainRemote end
     NetFolder = RS:FindFirstChild("__Net")
     MainRemote = NetFolder and NetFolder:FindFirstChild("MainRemote")
     return MainRemote
-end
-
-local function getToggleUIRemote()
-    if ToggleUIRemote and ToggleUIRemote.Parent then return ToggleUIRemote end
-    NetFolder = RS:FindFirstChild("__Net")
-    ToggleUIRemote = NetFolder and NetFolder:FindFirstChild("ToggleUI")
-    return ToggleUIRemote
 end
 
 -- Dynamic Trials Location Finder
@@ -120,8 +100,6 @@ local farmAllOresOn      = false
 local farmSelectedOreOn  = false
 local autoCapsuleOn      = false
 local autoRollOn         = false
-local autoT1ChestOn      = false
-local autoT2ChestOn      = false
 local autoStartRitualOn  = false
 local hideRollsOn        = false
 local antiAFKOn          = false
@@ -284,7 +262,7 @@ local function moveTo(cframe, aliveCheckFn, ignorePause)
         return
     end
 
-    -- Walk / Legit Mode (Fixed stuckTimer reset bug)
+    -- Walk / Legit Mode
     local targetPos = cframe.Position
     humanoid:MoveTo(targetPos)
     local reached = false
@@ -332,7 +310,6 @@ local function moveTo(cframe, aliveCheckFn, ignorePause)
     connection:Disconnect()
 end
 
--- Checks distance BEFORE running expensive UI/String health checks
 local function getClosest(folder, filterFn)
     local root = getRoot()
     if not root or not folder then return nil end
@@ -512,23 +489,21 @@ local Window = Rayfield:CreateWindow({
     }
 })
 
-local SettingsTab     = Window:CreateTab("Settings")
+local SettingsTab     = Window:CreateTab("Settings & Misc")
 local AutoTrialTab    = Window:CreateTab("AutoTrial")
 local AutoOresTab     = Window:CreateTab("AutoOres")
 local AutoMobsTab     = Window:CreateTab("AutoMobs")
 local AutoCapsulesTab = Window:CreateTab("AutoCapsules")
 local AutoRunesTab    = Window:CreateTab("AutoRunes")
 local AutoUpgradesTab = Window:CreateTab("AutoUpgrades")
-local ItemsTab        = Window:CreateTab("Items")
-local UITab           = Window:CreateTab("UI")
-local TeleportTab     = Window:CreateTab("Teleports")
-local MiscTab         = Window:CreateTab("Misc")
 local ConfigTab       = Window:CreateTab("Configs")
 local CreditsTab      = Window:CreateTab("Credits")
 
 ---------------------------------------------------------------------
--- Settings Tab
+-- Settings & Misc Tab (Combined)
 ---------------------------------------------------------------------
+SettingsTab:CreateSection("Movement & Display")
+
 SettingsTab:CreateDropdown({
     Name = "Movement Mode",
     Flag = "MovementMode",
@@ -607,6 +582,96 @@ SettingsTab:CreateToggle({
     end
 })
 
+SettingsTab:CreateSection("Misc & Utilities")
+
+local antiAFKConnection = nil
+
+SettingsTab:CreateToggle({
+    Name = "Anti AFK",
+    Flag = "AntiAFK",
+    CurrentValue = false,
+    Callback = function(state)
+        antiAFKOn = state
+        if antiAFKConnection then
+            antiAFKConnection:Disconnect()
+            antiAFKConnection = nil
+        end
+
+        if not state then return end
+
+        antiAFKConnection = LocalPlayer.Idled:Connect(function()
+            local cam = workspace.CurrentCamera
+            if cam then
+                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
+                task.wait(0.05)
+                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
+            end
+        end)
+    end
+})
+
+SettingsTab:CreateButton({
+    Name = "Redeem Codes (Be in a server with others)",
+    Callback = function()
+        local remote = getMainRemote()
+        local myCodesFolder = LocalPlayer:FindFirstChild("EXTRA") and LocalPlayer.EXTRA:FindFirstChild("CODES")
+        if not myCodesFolder then
+            warn("No local CODES folder found.")
+            return
+        end
+
+        local myCodes = {}
+        for _, codeObj in ipairs(myCodesFolder:GetChildren()) do
+            myCodes[codeObj.Name] = true
+        end
+
+        local missingCodes, queued = {}, {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local codesFolder = player:FindFirstChild("EXTRA") and player.EXTRA:FindFirstChild("CODES")
+                if codesFolder then
+                    for _, codeObj in ipairs(codesFolder:GetChildren()) do
+                        local codeName = codeObj.Name
+                        if not myCodes[codeName] and not queued[codeName] then
+                            queued[codeName] = true
+                            table.insert(missingCodes, codeName)
+                        end
+                    end
+                end
+            end
+        end
+
+        startManagedThread("RedeemCodes", function()
+            for _, codeName in ipairs(missingCodes) do
+                if remote then
+                    remote:FireServer("EnterCode", codeName)
+                end
+                task.wait(2)
+            end
+        end)
+    end
+})
+
+SettingsTab:CreateButton({
+    Name = "Load Infinite Yield",
+    Callback = function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+    end
+})
+
+SettingsTab:CreateButton({
+    Name = "Print Debug Info",
+    Callback = function()
+        print("===== DEBUG INFO =====")
+        print("MovementMode:", MovementMode)
+        print("SelectedTrialDifficulty:", SelectedTrialDifficulty)
+        print("TrialActive:", TrialActive, "| AutosPaused:", AutosPaused)
+        print("AutoPrestige:", getgenv().AutoPrestige)
+        print("HideErrors:", getgenv().HideErrors)
+        print("===== END DEBUG =====")
+    end
+})
+
 ---------------------------------------------------------------------
 -- AutoTrial Tab
 ---------------------------------------------------------------------
@@ -654,7 +719,6 @@ AutoTrialTab:CreateToggle({
     end
 })
 
--- Background monitor for Trial State & AutoTrial execution
 task.spawn(function()
     while task.wait(0.1) do
         updateAutoPauseState()
@@ -1247,7 +1311,6 @@ end
 
 local UpgradeBoards = getUpgradeBoards()
 
--- Fixed: Populates upgrade list even when board.Main.Visible is false
 local function getUpgradeList(board)
     local list = {}
     local main = board and board:FindFirstChild("Main")
@@ -1341,196 +1404,6 @@ if WorldUI then
         end
     end)
 end
-
----------------------------------------------------------------------
--- Items Tab
----------------------------------------------------------------------
-ItemsTab:CreateToggle({
-    Name = "Auto Use T1 Chest",
-    Flag = "AutoT1Chest",
-    CurrentValue = false,
-    Callback = function(state)
-        autoT1ChestOn = state
-        if not state then
-            stopManagedThread("AutoT1Chest")
-            return
-        end
-
-        startManagedThread("AutoT1Chest", function()
-            while autoT1ChestOn do
-                local remote = getMainRemote()
-                if remote then
-                    remote:FireServer("OpenChest", "T1TrialChest", 100)
-                end
-                task.wait(0.15)
-            end
-        end)
-    end
-})
-
-ItemsTab:CreateToggle({
-    Name = "Auto Use T2 Chest",
-    Flag = "AutoT2Chest",
-    CurrentValue = false,
-    Callback = function(state)
-        autoT2ChestOn = state
-        if not state then
-            stopManagedThread("AutoT2Chest")
-            return
-        end
-
-        startManagedThread("AutoT2Chest", function()
-            while autoT2ChestOn do
-                local remote = getMainRemote()
-                if remote then
-                    remote:FireServer("OpenChest", "T2TrialChest", 100)
-                end
-                task.wait(0.15)
-            end
-        end)
-    end
-})
-
----------------------------------------------------------------------
--- UI Tab
----------------------------------------------------------------------
-local UIButtons = {
-    { Name = "Open Expedition UI", UI = "Expedition" },
-    { Name = "Open Enchants UI",   UI = "Enchants" },
-    { Name = "Open Sword Enchants", UI = "SwordEnchants" },
-    { Name = "Open Auras",         UI = "Auras" },
-    { Name = "Open Rune Sacrifice", UI = "RuneSacrifice" },
-}
-
-for _, btn in ipairs(UIButtons) do
-    UITab:CreateButton({
-        Name = btn.Name,
-        Callback = function()
-            local remote = getToggleUIRemote()
-            if remote then
-                safeFireSignal(remote.OnClientEvent, "Open", btn.UI)
-            end
-        end
-    })
-end
-
----------------------------------------------------------------------
--- Teleports Tab
----------------------------------------------------------------------
-local function tpTo(x, y, z)
-    local root = getRoot()
-    if root then
-        root.CFrame = CFrame.new(x, y, z)
-    end
-end
-
-local TeleportLocations = {
-    { Name = "Lab",      Coords = Vector3.new(-2609, 45, -619) },
-    { Name = "Realm 1",  Coords = Vector3.new(1143, 15, -591) },
-    { Name = "Realm 2",  Coords = Vector3.new(1042, 10, 3288) },
-    { Name = "Realm 3",  Coords = Vector3.new(1019, 10, 7770) },
-    { Name = "Football", Coords = Vector3.new(-2701, 40, -119) },
-}
-
-for _, loc in ipairs(TeleportLocations) do
-    TeleportTab:CreateButton({
-        Name = loc.Name,
-        Callback = function()
-            tpTo(loc.Coords.X, loc.Coords.Y, loc.Coords.Z)
-        end
-    })
-end
-
----------------------------------------------------------------------
--- Misc Tab
----------------------------------------------------------------------
-MiscTab:CreateButton({
-    Name = "Redeem Codes (Be in a server with others)",
-    Callback = function()
-        local remote = getMainRemote()
-        local myCodesFolder = LocalPlayer:FindFirstChild("EXTRA") and LocalPlayer.EXTRA:FindFirstChild("CODES")
-        if not myCodesFolder then
-            warn("No local CODES folder found.")
-            return
-        end
-
-        local myCodes = {}
-        for _, codeObj in ipairs(myCodesFolder:GetChildren()) do
-            myCodes[codeObj.Name] = true
-        end
-
-        local missingCodes, queued = {}, {}
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                local codesFolder = player:FindFirstChild("EXTRA") and player.EXTRA:FindFirstChild("CODES")
-                if codesFolder then
-                    for _, codeObj in ipairs(codesFolder:GetChildren()) do
-                        local codeName = codeObj.Name
-                        if not myCodes[codeName] and not queued[codeName] then
-                            queued[codeName] = true
-                            table.insert(missingCodes, codeName)
-                        end
-                    end
-                end
-            end
-        end
-
-        startManagedThread("RedeemCodes", function()
-            for _, codeName in ipairs(missingCodes) do
-                if remote then
-                    remote:FireServer("EnterCode", codeName)
-                end
-                task.wait(2)
-            end
-        end)
-    end
-})
-
-local antiAFKConnection = nil
-
-MiscTab:CreateToggle({
-    Name = "Anti AFK",
-    Flag = "AntiAFK",
-    CurrentValue = false,
-    Callback = function(state)
-        antiAFKOn = state
-        if antiAFKConnection then
-            antiAFKConnection:Disconnect()
-            antiAFKConnection = nil
-        end
-
-        if not state then return end
-
-        antiAFKConnection = LocalPlayer.Idled:Connect(function()
-            local cam = workspace.CurrentCamera
-            if cam then
-                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
-                task.wait(0.05)
-                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
-            end
-        end)
-    end
-})
-
-MiscTab:CreateButton({
-    Name = "Load Infinite Yield",
-    Callback = function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
-    end
-})
-
-MiscTab:CreateButton({
-    Name = "Print Debug Info",
-    Callback = function()
-        print("===== DEBUG INFO =====")
-        print("MovementMode:", MovementMode)
-        print("SelectedTrialDifficulty:", SelectedTrialDifficulty)
-        print("TrialActive:", TrialActive, "| AutosPaused:", AutosPaused)
-        print("AutoPrestige:", getgenv().AutoPrestige)
-        print("HideErrors:", getgenv().HideErrors)
-        print("===== END DEBUG =====")
-    end
-})
 
 ---------------------------------------------------------------------
 -- Config System
