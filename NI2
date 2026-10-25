@@ -1,24 +1,12 @@
---== NoobIncremental (Optimized & Fixed Version) ==--
+--== NoobIncremental (Optimized & Custom Build) ==--
 if not game:IsLoaded() then
     game.Loaded:Wait()
 end
 
 ---------------------------------------------------------------------
--- Compatibility & Executor Helpers
+-- Compatibility & Helpers
 ---------------------------------------------------------------------
 local cloneref = cloneref or function(obj) return obj end
-
-local function safeFireSignal(event, ...)
-    if firesignal then
-        pcall(firesignal, event, ...)
-    elseif getconnections then
-        pcall(function(...)
-            for _, conn in ipairs(getconnections(event)) do
-                conn:Fire(...)
-            end
-        end, ...)
-    end
-end
 
 local function ensureNotEmpty(tbl)
     if type(tbl) ~= "table" or #tbl == 0 then
@@ -53,20 +41,12 @@ local RuneZones    = GameContent and GameContent:WaitForChild("RuneZones", 10)
 
 local NetFolder    = RS:WaitForChild("__Net", 10)
 local MainRemote   = NetFolder and NetFolder:WaitForChild("MainRemote", 10)
-local ToggleUIRemote = NetFolder and NetFolder:WaitForChild("ToggleUI", 10)
 
 local function getMainRemote()
     if MainRemote and MainRemote.Parent then return MainRemote end
     NetFolder = RS:FindFirstChild("__Net")
     MainRemote = NetFolder and NetFolder:FindFirstChild("MainRemote")
     return MainRemote
-end
-
-local function getToggleUIRemote()
-    if ToggleUIRemote and ToggleUIRemote.Parent then return ToggleUIRemote end
-    NetFolder = RS:FindFirstChild("__Net")
-    ToggleUIRemote = NetFolder and NetFolder:FindFirstChild("ToggleUI")
-    return ToggleUIRemote
 end
 
 -- Dynamic Trials Location Finder
@@ -120,8 +100,6 @@ local farmAllOresOn      = false
 local farmSelectedOreOn  = false
 local autoCapsuleOn      = false
 local autoRollOn         = false
-local autoT1ChestOn      = false
-local autoT2ChestOn      = false
 local autoStartRitualOn  = false
 local hideRollsOn        = false
 local antiAFKOn          = false
@@ -284,7 +262,7 @@ local function moveTo(cframe, aliveCheckFn, ignorePause)
         return
     end
 
-    -- Walk / Legit Mode (Fixed stuckTimer reset bug)
+    -- Walk / Legit Mode
     local targetPos = cframe.Position
     humanoid:MoveTo(targetPos)
     local reached = false
@@ -332,7 +310,6 @@ local function moveTo(cframe, aliveCheckFn, ignorePause)
     connection:Disconnect()
 end
 
--- Checks distance BEFORE running expensive UI/String health checks
 local function getClosest(folder, filterFn)
     local root = getRoot()
     if not root or not folder then return nil end
@@ -514,17 +491,19 @@ local Window = Rayfield:CreateWindow({
 
 local SettingsTab     = Window:CreateTab("Settings & Misc")
 local AutoTrialTab    = Window:CreateTab("AutoTrial")
-local AutoRunesTab    = Window:CreateTab("AutoRunes")
-local AutoCapsulesTab = Window:CreateTab("AutoCapsules")
 local AutoOresTab     = Window:CreateTab("AutoOres")
 local AutoMobsTab     = Window:CreateTab("AutoMobs")
+local AutoCapsulesTab = Window:CreateTab("AutoCapsules")
+local AutoRunesTab    = Window:CreateTab("AutoRunes")
 local AutoUpgradesTab = Window:CreateTab("AutoUpgrades")
 local ConfigTab       = Window:CreateTab("Configs")
 local CreditsTab      = Window:CreateTab("Credits")
 
 ---------------------------------------------------------------------
--- Settings & Misc Tab
+-- Settings & Misc Tab (Combined)
 ---------------------------------------------------------------------
+SettingsTab:CreateSection("Movement & Display")
+
 SettingsTab:CreateDropdown({
     Name = "Movement Mode",
     Flag = "MovementMode",
@@ -603,7 +582,35 @@ SettingsTab:CreateToggle({
     end
 })
 
-MiscTab:CreateButton({
+SettingsTab:CreateSection("Misc & Utilities")
+
+local antiAFKConnection = nil
+
+SettingsTab:CreateToggle({
+    Name = "Anti AFK",
+    Flag = "AntiAFK",
+    CurrentValue = false,
+    Callback = function(state)
+        antiAFKOn = state
+        if antiAFKConnection then
+            antiAFKConnection:Disconnect()
+            antiAFKConnection = nil
+        end
+
+        if not state then return end
+
+        antiAFKConnection = LocalPlayer.Idled:Connect(function()
+            local cam = workspace.CurrentCamera
+            if cam then
+                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
+                task.wait(0.05)
+                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
+            end
+        end)
+    end
+})
+
+SettingsTab:CreateButton({
     Name = "Redeem Codes (Be in a server with others)",
     Callback = function()
         local remote = getMainRemote()
@@ -645,40 +652,14 @@ MiscTab:CreateButton({
     end
 })
 
-local antiAFKConnection = nil
-
-MiscTab:CreateToggle({
-    Name = "Anti AFK",
-    Flag = "AntiAFK",
-    CurrentValue = false,
-    Callback = function(state)
-        antiAFKOn = state
-        if antiAFKConnection then
-            antiAFKConnection:Disconnect()
-            antiAFKConnection = nil
-        end
-
-        if not state then return end
-
-        antiAFKConnection = LocalPlayer.Idled:Connect(function()
-            local cam = workspace.CurrentCamera
-            if cam then
-                VirtualUser:Button2Down(Vector2.new(0, 0), cam.CFrame)
-                task.wait(0.05)
-                VirtualUser:Button2Up(Vector2.new(0, 0), cam.CFrame)
-            end
-        end)
-    end
-})
-
-MiscTab:CreateButton({
+SettingsTab:CreateButton({
     Name = "Load Infinite Yield",
     Callback = function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
     end
 })
 
-MiscTab:CreateButton({
+SettingsTab:CreateButton({
     Name = "Print Debug Info",
     Callback = function()
         print("===== DEBUG INFO =====")
@@ -738,7 +719,6 @@ AutoTrialTab:CreateToggle({
     end
 })
 
--- Background monitor for Trial State & AutoTrial execution
 task.spawn(function()
     while task.wait(0.1) do
         updateAutoPauseState()
@@ -1331,7 +1311,6 @@ end
 
 local UpgradeBoards = getUpgradeBoards()
 
--- Fixed: Populates upgrade list even when board.Main.Visible is false
 local function getUpgradeList(board)
     local list = {}
     local main = board and board:FindFirstChild("Main")
